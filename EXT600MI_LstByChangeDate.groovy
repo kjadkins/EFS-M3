@@ -1,9 +1,9 @@
 // @author    Jessica Bjorklund (jessica.bjorklund@columbusglobal.com)
 // @date      2021-06-12
-// @version   1,0 
+// @version   1,0  
 //
 // Description 
-// This API transacation LstByChangeDate is used to send data to PriceFX from M3
+// This API transacation LstByChangeDate is used to send data to PriceFX from M3 
 //
 
 import java.math.RoundingMode 
