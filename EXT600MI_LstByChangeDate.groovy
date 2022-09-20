@@ -6,11 +6,12 @@
 // This API transacation LstByChangeDate is used to send data to PriceFX from M3 
 //
 
-//**************************************************************************** 
+//************************************************************************************ 
 // Date    Version     Developer 
 // 210612  1.0         Jessica Bjorklund, Columbus   New API transaction
 // 220620  2.0         Jessica Bjorklund, Columbus   Added PYNO to output
-//**************************************************************************** 
+// 220820  3.0         Jessica Bjorklund, Columbus   Change delivery address type from 1 to 2 when call to MWS410MI
+//************************************************************************************ 
 
 
 import java.math.RoundingMode 
@@ -291,7 +292,7 @@ public class LstByChangeDate extends ExtendM3Transaction {
    // Address Type
    //***************************************************************************** 
    private getDeliveryAddress(String company, String deliveryNumber, String AddressType){   
-        def params = [CONO: companyString, DLIX: deliveryNumberString, ADRT: "01"] 
+        def params = [CONO: companyString, DLIX: deliveryNumberString, ADRT: "02"] 
         String name = null
         String town = null
         String country = null
@@ -650,14 +651,7 @@ public class LstByChangeDate extends ExtendM3Transaction {
   discount4 = line.get("UBDIP4")     
   discount5 = line.get("UBDIP5")     
   discount6 = line.get("UBDIP6")    
-  
-  logger.info("discount1 = ${discount1}")
-  logger.info("discount2 = ${discount2}")
-  logger.info("discount3 = ${discount3}")
-  logger.info("discount4 = ${discount4}")
-  logger.info("discount5 = ${discount5}")
-  logger.info("discount6 = ${discount6}")
-  
+
   //Sum of discounts
   discountSum = 0                                                              
   discountSum = discount1 + discount2 + discount3 + discount5 + discount6      
