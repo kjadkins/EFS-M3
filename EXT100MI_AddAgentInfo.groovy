@@ -246,10 +246,9 @@ public class AddAgentInfo extends ExtendM3Transaction {
   // Check Agent
   //******************************************************************** 
   private Optional<DBContainer> findOCUSMA(int CONO, String AGNT){  
-    DBAction query = database.table("OCUSMA").index("00").build()   
+    DBAction query = database.table("OCUSMA").index("00").selection("OKCUTP", "OKSTAT").build()   
     def OCUSMA = query.getContainer()
     OCUSMA.set("OKCONO", CONO)
-    OCUSMA.set("OKDIVI", "")
     OCUSMA.set("OKCUNO", AGNT)
     
     if(query.read(OCUSMA))  { 

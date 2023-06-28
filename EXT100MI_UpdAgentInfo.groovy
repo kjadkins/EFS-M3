@@ -263,7 +263,6 @@ public class UpdAgentInfo extends ExtendM3Transaction {
     DBAction query = database.table("OCUSMA").index("00").selection("OKCUTP", "OKSTAT").build()   
     def OCUSMA = query.getContainer()
     OCUSMA.set("OKCONO", CONO)
-    OCUSMA.set("OKDIVI", "")
     OCUSMA.set("OKCUNO", AGNT)
     
     if(query.read(OCUSMA))  { 
