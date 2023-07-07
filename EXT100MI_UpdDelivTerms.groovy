@@ -22,6 +22,7 @@ public class UpdDelivTerms extends ExtendM3Transaction {
   String inORST
   String inORSL
   int inOT35
+  int inHOCD
   
   public UpdDelivTerms(MIAPI mi, DatabaseAPI database,ProgramAPI program) {
      this.mi = mi
@@ -53,6 +54,12 @@ public class UpdDelivTerms extends ExtendM3Transaction {
         inORTP = OOHEADContainer.getString("OAORTP")
         inORST = OOHEADContainer.getString("OAORST")
         inORSL = OOHEADContainer.getString("OAORSL")
+        inHOCD = OOHEADContainer.get("OAHOCD")
+     }
+
+     if (inHOCD != 0) {
+        mi.error("Order is in use. Update not allowed")   
+        return            
      }
 
      if (inORST < "44" && inORSL < "44") {
@@ -130,7 +137,7 @@ public class UpdDelivTerms extends ExtendM3Transaction {
   // Validate OOHEAD record
   //******************************************************************** 
   private Optional<DBContainer> findOOHEAD(Integer CONO, String ORNO){  
-     DBAction query = database.table("OOHEAD").index("00").selection("OALNCD", "OAORTP", "OAORST", "OAORSL").build()
+     DBAction query = database.table("OOHEAD").index("00").selection("OALNCD", "OAORTP", "OAORST", "OAORSL", "OAHOCD").build()
      def OOHEAD = query.getContainer()
      OOHEAD.set("OACONO", CONO)
      OOHEAD.set("OAORNO", ORNO)
