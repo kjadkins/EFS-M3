@@ -1,6 +1,6 @@
 // @author    Jessica Bjorklund (jessica.bjorklund@columbusglobal.com)
 // @date      2023-04-04
-// @version   1.0  
+// @version   2.0  
 //
 // Description 
 // This API transacation LstByDivi is used to send data to PriceFX from M3 
@@ -9,6 +9,7 @@
 //****************************************************************************************** 
 // Date    Version     Developer 
 // 230404  1.0         Jessica Bjorklund, Columbus   New API transaction to list by division
+// 230704  2.0         Jessica Bjorklund, Columbus   Changes to the list of delivery header
 //****************************************************************************************** 
 
 
@@ -484,15 +485,15 @@ public class LstByDivi extends ExtendM3Transaction {
      }
 
       // Get todays date
-     LocalDateTime now = LocalDateTime.now();    
-     DateTimeFormatter format1 = DateTimeFormatter.ofPattern("yyyyMMdd");  
-     String formatDate = now.format(format1);    
+     LocalDateTime now = LocalDateTime.now()    
+     DateTimeFormatter format1 = DateTimeFormatter.ofPattern("yyyyMMdd")  
+     String formatDate = now.format(format1)    
      
      int changeNo = lockedResult.get("F3CHNO")
      int newChangeNo = changeNo + 1 
 
      // Update changed information
-     int changeddate=Integer.parseInt(formatDate);   
+     int changeddate=Integer.parseInt(formatDate)   
      lockedResult.set("F3LMDT", changeddate)  
       
      lockedResult.set("F3CHNO", newChangeNo) 
@@ -597,7 +598,9 @@ public class LstByDivi extends ExtendM3Transaction {
     mi.outData.put("UCA2", outUCA2)
     mi.outData.put("UCA3", outUCA3)
     mi.outData.put("EXIN", outEXIN)
-    lastExportedInvoiceNumberEnd = outIVNO
+    if(outIVNO != null && outIVNO != "") {
+      lastExportedInvoiceNumberEnd = outIVNO
+    }
   } 
     
 
@@ -606,12 +609,15 @@ public class LstByDivi extends ExtendM3Transaction {
   //********************************************************************  
    void lstDeliveryHead(){   
      
-     DBAction queryODHEAD = database.table("ODHEAD").index("81").selection("UACONO", "UAORNO", "UAIVNO", "UACUNO", "UADLIX", "UAWHLO", "UAIVDT", "UACUCD", "UATEPY", "UAORST", "UAYEA4", "UATEDL", "UAINPX", "UADIVI", "UAPYNO", "UAEXIN").build()    
+     ExpressionFactory expression = database.getExpressionFactory("ODHEAD")
+     expression = expression.gt("UAIVNO", lastExportedInvoiceNumberStart.trim()).and(expression.lt("UAIVNO", lastExportedInvoiceNumberMax.trim()))
+
+     DBAction queryODHEAD = database.table("ODHEAD").index("81").matching(expression).selection("UACONO", "UAORNO", "UAIVNO", "UACUNO", "UADLIX", "UAWHLO", "UAIVDT", "UACUCD", "UATEPY", "UAORST", "UAYEA4", "UATEDL", "UAINPX", "UADIVI", "UAPYNO", "UAEXIN").build()    
      DBContainer containerODHEAD = queryODHEAD.getContainer()
      containerODHEAD.set("UACONO", inCONO)
      containerODHEAD.set("UADIVI", inDIVI)
 
-     int pageSize = mi.getMaxRecords() <= 0 || mi.getMaxRecords() >= 1000? 1000: mi.getMaxRecords()       
+     int pageSize = mi.getMaxRecords() <= 0 || mi.getMaxRecords() >= 10000? 10000: mi.getMaxRecords()       
 
      queryODHEAD.readAll(containerODHEAD, 2, pageSize, releasedLineProcessorODHEAD)
 
@@ -638,7 +644,7 @@ public class LstByDivi extends ExtendM3Transaction {
     year = String.valueOf(containerODHEAD.get("UAYEA4"))
     yearNumeric = containerODHEAD.get("UAYEA4")
     invoicePrefix = containerODHEAD.get("UAINPX")                   
-    payer = containerODHEAD.get("UAPYNO")                           
+    payer = containerODHEAD.get("UAPYNO")  
 
     if (invoiceNumberString > lastExportedInvoiceNumberStart.trim() && invoiceNumberString <= lastExportedInvoiceNumberMax.trim()) {
        lstInvoiceLines(yearNumeric, invoicePrefix, invoiceNumber)
@@ -660,7 +666,7 @@ public class LstByDivi extends ExtendM3Transaction {
      containerODLINE.set("UBINPX", inpx)
      containerODLINE.set("UBIVNO", ivno)
      
-     int pageSize = mi.getMaxRecords() <= 0 || mi.getMaxRecords() >= 1000? 1000: mi.getMaxRecords()        
+     int pageSize = mi.getMaxRecords() <= 0 || mi.getMaxRecords() >= 10000? 10000: mi.getMaxRecords()        
 
      queryODLINE.readAll(containerODLINE, 5, pageSize, releasedLineProcessorODLINE)
 
