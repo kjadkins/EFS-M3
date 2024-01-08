@@ -647,6 +647,7 @@ public class OutputProcessExtension extends ExtendM3Trigger {
 					arrLnam[i] = 0d;
 					arrCucd[i] = " ";    
 					arrLnau[i] = 0d;    
+					arrLnad[i] = 0d;    
 				}
 	
 				//read all EXT641 data for the creation of EXT642 data
