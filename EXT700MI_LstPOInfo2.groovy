@@ -1,11 +1,17 @@
+/****************************************************************************************
+ Extension Name: EXT700MI/LstPOInfo2
+ Type: ExtendM3Transaction
+ Script Author: Jessica Bjorklund (jessica.bjorklund@columbusglobal.com)
+ Date: 2023-09-08
+ Description:
+   This API transacation LstPOInfo2 is used to send PO data to ESKAR from M3
+    
+ Revision History:
+ Name                    Date             Version          Description of Changes
+ Jessica Bjorklund       2023-09-08       1.0              Creation
+ Jessica Bjorklund       2025-09-18       2.0              Add logic for currency
+******************************************************************************************/
 
-// @author    Jessica Bjorklund (jessica.bjorklund@columbusglobal.com)
-// @date      2023-09-08
-// @version   1.0 
-//
-// Description 
-// This API transacation LstPOInfo2 is used to send PO data to ESKAR from M3 
-//
 
 import java.math.RoundingMode 
 import java.math.BigDecimal
@@ -61,21 +67,23 @@ public class LstPOInfo2 extends ExtendM3Transaction {
   public int unitDMCF 
   public double accInvQty  
   public double accInvAmount 
-  public String CC_CountryCode
-  public String ID_CountryCode
+  public String cc_CountryCode
+  public String id_CountryCode
   public double recCostAmount 
   public double recExcRate 
+  public String qtyConversionFactor  
   public double calcCOFA1   
   public double calcDMCF1   
   public double calcCOFA2   
   public double calcDMCF2 
   public double calcFACP
+  public BigDecimal calcFACE
   public double calcFACO
   public double calcFACT
   public String linePPUN  
   public double invLineRPQA
-  public String MPLINDlinePUOS
-  public double MPLINDlineRPQA
+  public String mplindLinePUOS
+  public double mplindLineRPQA
   public int completeFlag  
   public double lineDelAmount
   public double invHeadRPQA
@@ -108,7 +116,7 @@ public class LstPOInfo2 extends ExtendM3Transaction {
   public Integer highestStatus
   public double repQty
 
-    
+
   // Definition of output fields
   public String outLPUD
   public String outPNLI  
@@ -143,6 +151,13 @@ public class LstPOInfo2 extends ExtendM3Transaction {
   public String outVTCD
   public String outFACO
   public String outFACP
+  public String outPUST
+  public String outGRNR
+  public String outARAT
+  public String outDMCU
+  public String outCSCD
+  public String outCUCD
+  public String outFACE
   
   
   // Constructor 
@@ -202,6 +217,8 @@ public class LstPOInfo2 extends ExtendM3Transaction {
       // Record found, continue to get information  
       DBContainer containerMPLINE = MPLINE.get() 
 
+      logger.debug("MPLINE found")
+      
       // Output selectAllFields 
       outPUNO = inPUNO
       outLPUD = containerMPLINE.get("IBLPUD")
@@ -210,7 +227,16 @@ public class LstPOInfo2 extends ExtendM3Transaction {
       outITNO = containerMPLINE.get("IBITNO")
       outPITD = containerMPLINE.get("IBPITD")
       outVTCD = containerMPLINE.get("IBVTCD")
-      
+      outPUST  = containerMPLINE.get("IBPUST")
+      if (outPUST >= "70" && outPUST <= "80") {
+         outGRNR = "Y "
+      } else {
+         outGRNR = "N "
+      }
+
+      logger.debug("MPLINE outPUST ${outPUST}")
+      logger.debug("MPLINE outGRNR ${outGRNR}")
+
       // Fields for calculation
       lineORQA = containerMPLINE.get("IBCFQA")
       if (lineORQA > 0) {
@@ -242,7 +268,7 @@ public class LstPOInfo2 extends ExtendM3Transaction {
       outFACP = String.valueOf(calcFACP)
       outFACO = String.valueOf(calcFACO)
       outFACT = String.valueOf(calcFACT)
-        
+      outFACE = calcFACE.setScale(6, RoundingMode.HALF_UP).toPlainString()  
 	    outORQT = lineORQA
 	    outRVQT = lineRVQA
 
@@ -260,13 +286,6 @@ public class LstPOInfo2 extends ExtendM3Transaction {
       lineOrderedAmount = lineOrderedAmountRounded  
       outLNAM = lineOrderedAmount
 
-      //L Delivered Amount
-      double lineDeliveredAmount = lineRVQA * (linePrice * calcFACT)
-      BigDecimal lineDeliveredAmountRounded  = BigDecimal.valueOf(lineDeliveredAmount) 
-      lineDeliveredAmountRounded = lineDeliveredAmountRounded.setScale(2, RoundingMode.HALF_UP) 
-      lineDeliveredAmount = lineDeliveredAmountRounded  
-      outDEAL = lineDeliveredAmount
-
       outSUDO = ""  
       outRPQT = ""  
       outTRDT = ""  
@@ -278,12 +297,15 @@ public class LstPOInfo2 extends ExtendM3Transaction {
       // Get Purchase order head
       Optional<DBContainer> MPHEAD = findMPHEAD(company, inPUNO)
       if (MPHEAD.isPresent()) {
-         // Record found, continue to get information  
+        // Record found, continue to get information  
         DBContainer containerMPHEAD = MPHEAD.get()  
+        
+        logger.debug("resultMPHEAD")
         
         // output fields   
         outCONO = String.valueOf(containerMPHEAD.get("IACONO"))
         outDIVI = containerMPHEAD.getString("IADIVI")
+		    outCUCD = containerMPHEAD.getString("IACUCD")
         outPUNO = containerMPHEAD.getString("IAPUNO")
         outSUNO = containerMPHEAD.getString("IASUNO")   
         outPUDT = String.valueOf(containerMPHEAD.get("IAPUDT"))
@@ -306,7 +328,8 @@ public class LstPOInfo2 extends ExtendM3Transaction {
         if(CIDMAS.isPresent()){
           // Record found, continue to get information  
           DBContainer containerCIDMAS = CIDMAS.get() 
-          ID_CountryCode = containerCIDMAS.getString("IDCSCD")   
+          id_CountryCode = containerCIDMAS.getString("IDCSCD")
+		      outCSCD=id_CountryCode		  
         }  
          
         // Get division information
@@ -314,11 +337,12 @@ public class LstPOInfo2 extends ExtendM3Transaction {
         if(CMNDIV.isPresent()){
           // Record found, continue to get information  
           DBContainer containerCMNDIV = CMNDIV.get() 
-          CC_CountryCode = containerCMNDIV.getString("CCCSCD")   
+          cc_CountryCode = containerCMNDIV.getString("CCCSCD")  
+		      outDMCU = String.valueOf(containerCMNDIV.get("CCDMCU"))   		  
         } 
          
         // Compare division's country code and the Supplier's 
-        if(CC_CountryCode != ID_CountryCode){ 
+        if(cc_CountryCode != id_CountryCode){ 
           outORIG = String.valueOf("FOR")
         }else{ 
           outORIG = String.valueOf("DOM")
@@ -335,15 +359,32 @@ public class LstPOInfo2 extends ExtendM3Transaction {
       accInvAmount = 0d 
       invLineIVQT = 0d
       List<DBContainer> resultFGINLIline = listFGINLIline(company, inPUNO, inPNLI, inPNLS) 
-      for (DBContainer invLineLine : resultFGINLIline){
-	        invLineIVQT = invLineLine.get("F5IVQA") 
-          invLineIVNA = invLineLine.get("F5IVNA") 
+      for (DBContainer invLineLine : resultFGINLIline){   
+          logger.debug("company ${company}")
+          logger.debug("inPUNO ${inPUNO}")
+          logger.debug("inPNLI ${inPNLI}")
+          logger.debug("inPNLS ${inPNLS}")
+          
+	        invLineIVQT = invLineLine.get("F5IVQA")      
+          invLineIVNA = invLineLine.get("F5IVNA")      
+          
+          logger.debug("resultFGINLIline invLineIVQT ${invLineIVQT}")
+          logger.debug("resultFGINLIline invLineIVNA ${invLineIVNA}")
+          
           accInvQty = accInvQty + invLineIVQT 
           accInvAmount = accInvAmount + invLineIVNA 
-      }
+          
+          logger.debug("resultFGINLIline accInvQty ${accInvQty}")
+          logger.debug("resultFGINLIline accInvAmount ${accInvAmount}")
+      } 
+      
       outTIVA = String.valueOf(accInvAmount) 
       outIVQT = String.valueOf(accInvQty)
+    } else {
+      logger.debug("MPLINE not found")
     }
+
+      logger.debug("MPLINE outPUNO ${outPUNO}")
 
       // Get information from receiving lines
       outSUDO = ""  
@@ -354,20 +395,105 @@ public class LstPOInfo2 extends ExtendM3Transaction {
       outGRAM = ""  
       outCOMP = ""  
 
+      double totalReceivedAmount = 0d        
+      double totalReceivedAmountRounded = 0d   
+      double totalReceivedQuantity = 0d        
+      double totalReceivedQuantityRounded = 0d   
+
+      
+      List<DBContainer> resultFGRECLlineSum = listFGRECLline(company, division, inPUNO, inPNLI, inPNLS)  
+      for (DBContainer recLineLineSum : resultFGRECLlineSum){   
+          int invLineSumREPN = recLineLineSum.get("F2REPN")    
+          // Accumulate quantity   
+          double invLineSumRPQA = recLineLineSum.get("F2RPQA")    
+          double invLineSumCAWE = recLineLineSum.get("F2CAWE")    
+
+          logger.debug("invLineSumRPQA ${invLineSumRPQA}")
+          logger.debug("invLineSumCAWE ${invLineSumCAWE}")
+          
+          if (invLineSumCAWE != 0) {
+             invLineSumRPQA = invLineSumCAWE
+          }
+          
+          logger.debug("invLineSumRPQA ${invLineSumRPQA}")
+          
+          checkMPLINDstatus(company, inPUNO, inPNLI, inPNLS, invLineSumREPN) 
+          
+          mplindLinePUOS = 0
+          mplindLineRPQA = 0d
+          logger.debug("highestStatus ${highestStatus}")
+          if (highestStatus > 60) {
+            List<DBContainer> resultMPLINDRep64 = listMPLIND(company, inPUNO, inPNLI, inPNLS, invLineSumREPN, "64") 
+            for (DBContainer transLine : resultMPLINDRep64){
+                mplindLineRPQA = transLine.get("ICRPQA")
+            }
+          } else {
+               mplindLineRPQA = repQty
+          }
+
+          logger.debug("invLineSumRPQA ${invLineSumRPQA}")
+          logger.debug("mplindLineRPQA ${mplindLineRPQA}")
+          
+          if (invLineSumRPQA > 0) {
+            if (highestStatus == 60) {
+              invLineSumRPQA = mplindLineRPQA
+            } else if (highestStatus > 60) {
+              invLineSumRPQA = invLineSumRPQA - mplindLineRPQA
+            } else {
+              invLineSumRPQA = 0d
+            }
+          } 
+          
+          //Sum Quanity
+          logger.debug("invLineSumRPQA ${invLineSumRPQA}")
+
+          totalReceivedQuantity = totalReceivedQuantity + invLineSumRPQA  
+          
+          logger.debug("totalReceivedQuantity ${totalReceivedQuantity}")
+          
+          BigDecimal totalReceivedQuantityFormat  = BigDecimal.valueOf(totalReceivedQuantity)   
+          totalReceivedQuantityRounded = totalReceivedQuantityFormat.setScale(2, RoundingMode.HALF_UP)   
+          outRVQT = totalReceivedQuantityRounded  
+
+          logger.debug("invLineSumRPQA ${invLineSumRPQA}")  
+          logger.debug("totalReceivedQuantityRounded ${totalReceivedQuantityRounded}")   
+          
+          //Sum Amount
+          double invLineSumGRAM = totalReceivedQuantity * unitPrice     
+          
+          logger.debug("invLineSumGRAM ${invLineSumGRAM}")
+
+          totalReceivedAmount = invLineSumGRAM  
+          
+          logger.debug("totalReceivedAmount ${totalReceivedAmount}")
+          
+          BigDecimal totalReceivedAmountFormat  = BigDecimal.valueOf(totalReceivedAmount)  
+          totalReceivedAmountRounded = totalReceivedAmountFormat.setScale(2, RoundingMode.HALF_UP)  
+          outDEAL = totalReceivedAmountRounded  
+
+          logger.debug("invLineSumGRAM ${invLineSumGRAM}") 
+          logger.debug("totalReceivedAmountRounded ${totalReceivedAmountRounded}")   
+      }
+      
+
       List<DBContainer> resultFGRECLline = listFGRECLline(company, division, inPUNO, inPNLI, inPNLS) 
-      for (DBContainer RecLineLine : resultFGRECLline){
-          int receivingNumber = RecLineLine.get("F2REPN")  
+      for (DBContainer recLineLine : resultFGRECLline){
+          int receivingNumber = recLineLine.get("F2REPN")  
+
+          logger.debug("resultFGRECLline receivingNumber ${receivingNumber}")
 
           // Accumulate quantity   
-          invLineRCAC = RecLineLine.get("F2RCAC") 
-          invLineSERA = RecLineLine.get("F2SERA") 
-          invLineIVQT = RecLineLine.get("F2IVQA")  
-          invLineRPQA = RecLineLine.get("F2RPQA")   
-          invlineICAC = RecLineLine.get("F2ICAC")   
+          invLineRCAC = recLineLine.get("F2RCAC") 
+          invLineSERA = recLineLine.get("F2SERA") 
+          invLineIVQT = recLineLine.get("F2IVQA")  
+          invLineRPQA = recLineLine.get("F2RPQA")   
+          invlineICAC = recLineLine.get("F2ICAC")   
+		  
 
           accRecCostAmount = accRecCostAmount + invLineRCAC   
           accRecInvAmount = accRecInvAmount + invlineICAC
           accRecExcRate = invLineSERA    
+		      outARAT=accRecExcRate
           accRecRepQty = accRecRepQty + invLineRPQA
           accRecQty = accRecQty + (invLineIVQT * lineAmount)  
           
@@ -377,12 +503,15 @@ public class LstPOInfo2 extends ExtendM3Transaction {
           recLineGRAmount = recLineGRAmountRounded  
 
           //Get receiving info
-          MPLINDlinePUOS = 0
-          MPLINDlineRPQA = 0d
+          mplindLinePUOS = 0
+          mplindLineRPQA = 0d
           List<DBContainer> resultMPLIND = listMPLIND(company, inPUNO, inPNLI, inPNLS, receivingNumber, "0") 
           for (DBContainer transLine : resultMPLIND){
-              MPLINDlinePUOS = transLine.get("ICPUOS")   
-              MPLINDlineRPQA = transLine.get("ICRPQA")
+            
+              logger.debug("resultMPLIND")
+            
+              mplindLinePUOS = transLine.get("ICPUOS")   
+              mplindLineRPQA = transLine.get("ICRPQA")
               completeFlag = transLine.get("ICOEND")
 
               if(completeFlag == 1){ 
@@ -395,47 +524,65 @@ public class LstPOInfo2 extends ExtendM3Transaction {
           repQty = 0d
           checkMPLINDstatus(company, inPUNO, inPNLI, inPNLS, receivingNumber) 
           
-          MPLINDlinePUOS = 0
-          MPLINDlineRPQA = 0d
+          mplindLinePUOS = 0
+          mplindLineRPQA = 0d
           if (highestStatus > 60) {
             List<DBContainer> resultMPLINDRep64 = listMPLIND(company, inPUNO, inPNLI, inPNLS, receivingNumber, "64") 
             for (DBContainer transLine : resultMPLINDRep64){
-                MPLINDlineRPQA = transLine.get("ICRPQA")
+                mplindLineRPQA = transLine.get("ICRPQA")
             }
           } else {
-               MPLINDlineRPQA = repQty
+               mplindLineRPQA = repQty
           }
 
           // Output   
-          outSUDO = String.valueOf(RecLineLine.get("F2SUDO")) 
-          double CAWE =  RecLineLine.get("F2CAWE")
-          double RPQT =  RecLineLine.get("F2RPQA")
+          outSUDO = String.valueOf(recLineLine.get("F2SUDO")) 
+          double CAWE =  recLineLine.get("F2CAWE")
+          double RPQT =  recLineLine.get("F2RPQA")
+          
+          logger.debug("CAWE ${CAWE}")
+          logger.debug("RPQT 1 ${RPQT}")
+          
           if (CAWE != 0) {
              RPQT = CAWE
           }
-          if (highestStatus > 60) {
-            RPQT = RPQT - MPLINDlineRPQA
-          } else if (highestStatus == 60) {
-            RPQT = MPLINDlineRPQA
-          } else {
-            RPQT = 0d
-          }
+          
+          logger.debug("RPQT 2 ${RPQT}")
+          
+          if (RPQT > 0) {
+            if (highestStatus == 60) {
+              RPQT = mplindLineRPQA
+            } else if (highestStatus > 60) {
+              RPQT = RPQT - mplindLineRPQA
+            } else {
+              RPQT = 0d
+            }
+          } 
+          
+          logger.debug("RPQT 3 ${RPQT}")
           
           outRPQT = String.valueOf(RPQT) 
 
           double receivedAmount = 0d
           
+          logger.debug("RPQT last ${RPQT}")
+          logger.debug("unitPrice last ${unitPrice}")
+          
           receivedAmount = RPQT * unitPrice
+          logger.debug("receivedAmount last ${receivedAmount}")
           BigDecimal receivedAmountRounded  = BigDecimal.valueOf(receivedAmount) 
           receivedAmountRounded = receivedAmountRounded.setScale(2, RoundingMode.HALF_UP) 
           receivedAmount = receivedAmountRounded  
 
           outGRAM = String.valueOf(receivedAmount)
-          outTRDT = String.valueOf(RecLineLine.get("F2TRDT"))  
-          outREPN = String.valueOf(RecLineLine.get("F2REPN")) 
-          outGRIQ = String.valueOf(RecLineLine.get("F2IVQA")) 
-          double GRIQ =  RecLineLine.get("F2IVQA")
-          outGRIA = String.valueOf(GRIQ * unitPrice)
+          outTRDT = String.valueOf(recLineLine.get("F2TRDT"))  
+          outREPN = String.valueOf(recLineLine.get("F2REPN")) 
+          outGRIQ = String.valueOf(recLineLine.get("F2IVQA")) 
+          double GRIQ =  recLineLine.get("F2IVQA")
+          BigDecimal grInvoicedAmountFormat  = BigDecimal.valueOf(GRIQ * unitPrice)  
+          double grInvoicedAmountRounded = grInvoicedAmountFormat.setScale(2, RoundingMode.HALF_UP)  
+          outGRIA = String.valueOf(grInvoicedAmountRounded)
+          
           setOutput()
           mi.write()   
 
@@ -464,13 +611,21 @@ public class LstPOInfo2 extends ExtendM3Transaction {
   // Get and set Unit of Measure Factors 
   //*****************************************************************************************
   void getUoMFactors(int CONO, String ITNO, String PPUN, String PUUN) {
-
+	  calcFACE = 0d
       calcFACP = 0d
       calcFACO = 0d
       calcFACT = 0d
       
+      Optional<DBContainer> MITAUN0 = findMITAUN(company, outITNO, 1, linePPUN)
+      if(MITAUN0.isPresent()){
+        qtyConversionFactor='Y'
+        
+      } else{
+        qtyConversionFactor='N'	
+		}
+
       // Calculate with Unit of measure factor   
-      // Get COFA and DMCF from PPUN Price UoM            
+      // Get COFA and DMCF from PPUN Price UoM   
       Optional<DBContainer> MITAUN1 = findMITAUN(company, outITNO, 2, linePPUN)
       if(MITAUN1.isPresent()){
         // Record found, continue to get information  
@@ -483,9 +638,19 @@ public class LstPOInfo2 extends ExtendM3Transaction {
       }
       if (calcDMCF1 == 1) {
         calcFACP = 1/calcCOFA1
-      } else {
-        calcFACP = calcCOFA1
-      }
+		  if(qtyConversionFactor == 'N'){
+		    calcFACE = 1/calcCOFA1
+		  }else {
+		    calcFACE=1
+		  }
+        } else {
+          calcFACP = calcCOFA1
+		  if(qtyConversionFactor == 'N'){
+		    calcFACE = calcCOFA1
+		  }else {
+		    calcFACE=1
+		  }
+    }
 
       // Get COFA and DMCF from PUUN Qty UoM           
       Optional<DBContainer> MITAUN2 = findMITAUN(company, outITNO, 2, linePUUN)
@@ -497,6 +662,7 @@ public class LstPOInfo2 extends ExtendM3Transaction {
         } else { 
           calcCOFA2 = 1
           calcDMCF2 = 1
+
         }
         if (calcDMCF2 == 1) {
           calcFACO = calcCOFA2
@@ -524,7 +690,7 @@ public class LstPOInfo2 extends ExtendM3Transaction {
   // Get Division information CMNDIV
   //******************************************************************** 
   private Optional<DBContainer> findCMNDIV(Integer CONO, String DIVI){  
-    DBAction query = database.table("CMNDIV").index("00").selection("CCCONO", "CCCSCD", "CCDIVI").build()
+    DBAction query = database.table("CMNDIV").index("00").selection("CCCONO", "CCCSCD", "CCDIVI","CCDMCU").build()
     DBContainer CMNDIV = query.getContainer()
     CMNDIV.set("CCCONO", CONO)
     CMNDIV.set("CCDIVI", DIVI)
@@ -540,7 +706,7 @@ public class LstPOInfo2 extends ExtendM3Transaction {
   // Get Division information MPLINE
   //******************************************************************** 
   private Optional<DBContainer> findMPLINE(Integer CONO, String PUNO, Integer PNLI, Integer PNLS){  
-    DBAction query = database.table("MPLINE").index("00").selection("IBPUPR", "IBCONO", "IBPUNO", "IBPNLI", "IBPNLS", "IBITNO", "IBLPUD", "IBLNAM", "IBPITD", "IBVTCD", "IBORQA", "IBIVQA", "IBRVQA", "IBPUUN", "IBPPUN", "IBODI1", "IBODI2", "IBODI3", "IBCFD1", "IBCFD2", "IBCFD3", "IBCPPR").build()    
+    DBAction query = database.table("MPLINE").index("00").selection("IBPUPR", "IBCONO", "IBPUNO", "IBPNLI", "IBPNLS", "IBITNO", "IBLPUD", "IBLNAM", "IBPITD", "IBVTCD", "IBORQA", "IBIVQA", "IBRVQA", "IBPUUN", "IBPPUN", "IBODI1", "IBODI2", "IBODI3", "IBCFD1", "IBCFD2", "IBCFD3", "IBCPPR", "IBPUST").build()    
     DBContainer MPLINE = query.getContainer()
     MPLINE.set("IBCONO", CONO)
     MPLINE.set("IBPUNO", PUNO)
@@ -558,7 +724,7 @@ public class LstPOInfo2 extends ExtendM3Transaction {
   // Get information from MPHEAD
   //******************************************************************** 
   private Optional<DBContainer> findMPHEAD(Integer CONO, String PUNO){  
-    DBAction query = database.table("MPHEAD").index("00").selection("IACONO", "IAPUNO", "IADIVI", "IASUNO", "IANTAM", "IAPUDT", "IABUYE", "IACOAM").build()    
+    DBAction query = database.table("MPHEAD").index("00").selection("IACONO", "IAPUNO", "IADIVI", "IASUNO", "IANTAM", "IAPUDT", "IABUYE", "IACOAM","IACUCD").build()    
     DBContainer MPHEAD = query.getContainer()
     MPHEAD.set("IACONO", CONO)
     MPHEAD.set("IAPUNO", PUNO)
@@ -576,21 +742,25 @@ public class LstPOInfo2 extends ExtendM3Transaction {
   private List<DBContainer> listFGINLIline(Integer CONO, String PUNO, Integer PNLI, Integer PNLS){ 
     List<DBContainer>invLine = new ArrayList() 
     ExpressionFactory expression = database.getExpressionFactory("FGINLI")
-    DBAction query = database.table("FGINLI").index("20").selection("F5IVQA", "F5IVNA").build() 
+    DBAction query = database.table("FGINLI").index("20").selection("F5IVQA", "F5IVNA").reverse().build()   
     DBContainer FGINLIline = query.getContainer() 
     FGINLIline.set("F5CONO", CONO)   
     FGINLIline.set("F5PUNO", PUNO) 
     FGINLIline.set("F5PNLI", PNLI) 
+    FGINLIline.set("F5PNLS", PNLS) 
 
     int pageSize = mi.getMaxRecords() <= 0 || mi.getMaxRecords() >= 10000? 10000: mi.getMaxRecords()        
-    query.readAll(FGINLIline, 3, pageSize, { DBContainer record ->  
-     invLine.add(record) 
+    query.readAll(FGINLIline, 4, pageSize, { DBContainer record ->                                           
+     logger.debug("FGINLI record ${record}")
+     invLine.add(record.createCopy())  //JBTST
     })
 
+    logger.debug("invLine ${invLine}")
+    
     return invLine
   } 
-
-
+  
+  
   //******************************************************************** 
   // Get record from MPLIND
   //******************************************************************** 
@@ -660,7 +830,7 @@ public class LstPOInfo2 extends ExtendM3Transaction {
   // Accumulate value from FGRECL - PO Line level
   //********************************************************************  
   private List<DBContainer> listFGRECLline(int CONO, String DIVI, String PUNO, int PNLI, int PNLS){
-    List<DBContainer>RecLineLine = new ArrayList() 
+    List<DBContainer>recLineLine = new ArrayList() 
     ExpressionFactory expression = database.getExpressionFactory("FGRECL")
     expression = expression.ne("F2RPQA", String.valueOf(0)) 
     DBAction query = database.table("FGRECL").index("00").matching(expression).selection("F2REPN", "F2RCAC", "F2SERA", "F2IVQA", "F2RPQA", "F2ICAC", "F2SUDO", "F2CAWE", "F2TRDT").build()
@@ -669,13 +839,14 @@ public class LstPOInfo2 extends ExtendM3Transaction {
     FGRECLline.set("F2DIVI", DIVI)
     FGRECLline.set("F2PUNO", PUNO)
     FGRECLline.set("F2PNLI", PNLI)
+    FGRECLline.set("F2PNLS", PNLS)   
 
 	  int pageSize = mi.getMaxRecords() <= 0 || mi.getMaxRecords() >= 10000? 10000: mi.getMaxRecords()        
-    query.readAll(FGRECLline, 4, pageSize, { DBContainer record ->  
-      RecLineLine.add(record.createCopy()) 
+    query.readAll(FGRECLline, 5, pageSize, { DBContainer record ->  
+      recLineLine.add(record.createCopy()) 
     })
 
-    return RecLineLine
+    return recLineLine
   }
   
   
@@ -768,6 +939,12 @@ public class LstPOInfo2 extends ExtendM3Transaction {
     outVTCD = ""   
     outFACO = ""
     outFACP = ""
+    outPUST = ""
+    outGRNR = ""
+    outARAT = ""
+    outDMCU = ""
+    outFACE = ""
+	  
   }
   
   
@@ -806,6 +983,14 @@ public class LstPOInfo2 extends ExtendM3Transaction {
     mi.outData.put("VTCD", outVTCD)    
     mi.outData.put("FACO", outFACO) 
     mi.outData.put("FACP", outFACP) 
+    mi.outData.put("PUST", outPUST) 
+    mi.outData.put("GRNR", outGRNR) 
+  	mi.outData.put("ARAT", outARAT) 
+  	mi.outData.put("DMCU", outDMCU) 
+  	mi.outData.put("CSCD", outCSCD) 
+  	mi.outData.put("CUCD", outCUCD) 
+  	mi.outData.put("FACE", outFACE) 
   } 
     
-}  
+}   
+

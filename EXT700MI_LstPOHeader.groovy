@@ -1,11 +1,16 @@
-
-// @author    Jessica Bjorklund (jessica.bjorklund@columbusglobal.com)
-// @date      2023-09-08
-// @version   1.0 
-//
-// Description 
-// This API transacation LstPOHeader is used to send header level PO data to ESKAR from M3 
-//
+/****************************************************************************************
+ Extension Name: EXT700MI/LstPOHeader
+ Type: ExtendM3Transaction
+ Script Author: Jessica Bjorklund (jessica.bjorklund@columbusglobal.com)
+ Date: 2023-09-08
+ Description:
+   This API transacation LstPOHeader is used to send PO data to ESKAR from M3
+    
+ Revision History:
+ Name                    Date             Version          Description of Changes
+ Jessica Bjorklund       2023-09-08       1.0              Creation
+ Jessica Bjorklund       2025-09-18       2.0              Add logic for currency
+******************************************************************************************/
 
 import java.math.RoundingMode 
 import java.math.BigDecimal
@@ -27,6 +32,7 @@ public class LstPOHeader extends ExtendM3Transaction {
   public String inPNLS 
   public String division
   public String supplier
+  public Integer orderDate  
   public double orderedAmount
   public String orderedAmountString
   public double sumOrderedAmount
@@ -42,7 +48,6 @@ public class LstPOHeader extends ExtendM3Transaction {
   public double ordAmt
   public double delAmt
   public double invAmt
-
     
   // Definition of output fields
   public String outPNLI  
@@ -53,7 +58,12 @@ public class LstPOHeader extends ExtendM3Transaction {
   public String outNTAM  
   public String outDEAH
   public String outIVNA
-
+  public String outDIVI
+  public String outCUCD
+  public String outDMCU
+  public String outARAT
+  public String outPUDT
+  public String outCSCD
   
   // Constructor 
   public LstPOHeader(MIAPI mi, DatabaseAPI database, ProgramAPI program, LoggerAPI logger, MICallerAPI miCaller) {
@@ -111,7 +121,45 @@ public class LstPOHeader extends ExtendM3Transaction {
         outDEAH = sumDeliveredAmount
         outIVNA = sumInvoicedAmount
     }
-    
+    Optional<DBContainer> MPHEAD = findMPHEAD(company, inPUNO)
+    if (MPHEAD.isPresent()) {
+        DBContainer containerMPHEAD = MPHEAD.get()  
+        
+        logger.debug("resultMPHEAD")
+        
+        outDIVI = containerMPHEAD.getString("IADIVI")
+        outCUCD = containerMPHEAD.getString("IACUCD")
+        orderDate = containerMPHEAD.get("IAPUDT")
+        supplier= containerMPHEAD.getString("IASUNO")
+        outPUDT = String.valueOf(orderDate)
+    }
+    if(outDIVI!= null){   
+        Optional<DBContainer> CMNDIV = findCMNDIV(company, outDIVI)
+        if(CMNDIV.isPresent()){
+           // Record found, continue to get information  
+           DBContainer containerCMNDIV = CMNDIV.get() 
+           outDMCU = String.valueOf(containerCMNDIV.get("CCDMCU"))   		  
+        } 
+    }    
+    if(supplier!= null){
+        Optional<DBContainer> CIDMAS = findCIDMAS(company, supplier)
+        if(CIDMAS.isPresent()){
+           // Record found, continue to get information  
+           DBContainer containerCIDMAS = CIDMAS.get() 
+           outCSCD = containerCIDMAS.getString("IDCSCD") 		  
+        } 
+    }
+    if(outDIVI!= null){
+       //Default if no rate found
+       outARAT= "1.00"
+       //Get the latest Currency Rate
+       List<DBContainer> resultCCURRA = listCCURRA(company, outDIVI, outCUCD, 6, orderDate)
+       for (DBContainer recLineCCURRA : resultCCURRA){ 
+           // Record found, continue to get information  
+           outARAT = '            '
+           outARAT = String.valueOf(recLineCCURRA.get("CUARAT"))   		  
+        }
+    }        
     setOutput()
   } 
 
@@ -140,7 +188,6 @@ public class LstPOHeader extends ExtendM3Transaction {
    } 
   
   
-  
   //******************************************************************** 
   // Read all lines for entered PO
   //********************************************************************  
@@ -162,6 +209,74 @@ public class LstPOHeader extends ExtendM3Transaction {
   }
   
 
+  //******************************************************************** 
+  // Get latest rate from CCURRA
+  //******************************************************************** 
+  private List<DBContainer> listCCURRA(Integer CONO, String DIVI, String CUCD, int CRTP, int CUTD){ 
+    List<DBContainer>currencyLine = new ArrayList() 
+    ExpressionFactory expression = database.getExpressionFactory("CCURRA")
+    DBAction query = database.table("CCURRA").index("00").selection("CUARAT").reverse().build() 
+    DBContainer CCURRA = query.getContainer() 
+    CCURRA.set("CUCONO", CONO)
+    CCURRA.set("CUDIVI", DIVI)
+    CCURRA.set("CUCUCD", CUCD)
+    CCURRA.set("CUCRTP", CRTP)
+    CCURRA.set("CUCUTD", CUTD)
+
+    int pageSize = mi.getMaxRecords() <= 0 || mi.getMaxRecords() >= 10000? 10000: mi.getMaxRecords()        
+       query.readAll(CCURRA, 4, 1, { DBContainer record ->  
+       currencyLine.add(record) 
+      })
+    
+    return currencyLine
+  } 
+   
+ 
+  //******************************************************************** 
+  // Get information from MPHEAD
+  //******************************************************************** 
+  private Optional<DBContainer> findMPHEAD(Integer CONO, String PUNO){  
+    DBAction query = database.table("MPHEAD").index("00").selection("IADIVI", "IACUCD", "IAPUDT", "IASUNO").build()    
+    DBContainer MPHEAD = query.getContainer()
+    MPHEAD.set("IACONO", CONO)
+    MPHEAD.set("IAPUNO", PUNO)
+    if(query.read(MPHEAD))  { 
+      return Optional.of(MPHEAD)
+    } 
+  
+    return Optional.empty()
+  }
+
+  //******************************************************************** 
+  // Get Division information CMNDIV
+  //******************************************************************** 
+  private Optional<DBContainer> findCMNDIV(Integer CONO, String DIVI){  
+    DBAction query = database.table("CMNDIV").index("00").selection("CCCONO","CCDMCU").build()
+    DBContainer CMNDIV = query.getContainer()
+    CMNDIV.set("CCCONO", CONO)
+    CMNDIV.set("CCDIVI", DIVI)
+    if(query.read(CMNDIV))  { 
+      return Optional.of(CMNDIV)
+    } 
+  
+    return Optional.empty()
+  }    
+  
+  //******************************************************************** 
+  // Get Supplier information CIDMAS
+  //******************************************************************** 
+  private Optional<DBContainer> findCIDMAS(Integer CONO, String SUNO){  
+    DBAction query = database.table("CIDMAS").index("00").selection("IDCSCD").build()
+    DBContainer CIDMAS = query.getContainer()
+    CIDMAS.set("IDCONO", CONO)
+    CIDMAS.set("IDSUNO", SUNO)
+    if(query.read(CIDMAS))  { 
+      return Optional.of(CIDMAS)
+    } 
+  
+    return Optional.empty()
+  }
+  
  
   //******************************************************************** 
   // Clear Output data
@@ -172,6 +287,12 @@ public class LstPOHeader extends ExtendM3Transaction {
       outNTAM = ""
       outDEAH = ""
       outIVNA = ""
+      outDIVI = "" 
+      outCUCD = ""
+      outPUDT = ""
+      outDMCU = ""
+      outARAT = ""
+      outCSCD = ""
   }
   
   
@@ -184,6 +305,12 @@ public class LstPOHeader extends ExtendM3Transaction {
       mi.outData.put("NTAM", outNTAM)  
       mi.outData.put("DEAH", outDEAH)
       mi.outData.put("IVNA", outIVNA) 
+      mi.outData.put("DIVI", outDIVI) 
+      mi.outData.put("CUCD", outCUCD) 
+      mi.outData.put("PUDT", outPUDT)
+      mi.outData.put("DMCU", outDMCU) 
+      mi.outData.put("ARAT", outARAT)
+      mi.outData.put("CSCD", outCSCD)
   } 
     
-}  
+}   
