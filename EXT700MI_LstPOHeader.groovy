@@ -12,10 +12,6 @@
  Jessica Bjorklund       2025-09-18       2.0              Add logic for currency
 ******************************************************************************************/
 
-import java.math.RoundingMode 
-import java.math.BigDecimal
-import java.lang.Math
-
 
 public class LstPOHeader extends ExtendM3Transaction {
   private final MIAPI mi 
@@ -48,13 +44,11 @@ public class LstPOHeader extends ExtendM3Transaction {
   public double ordAmt
   public double delAmt
   public double invAmt
+  public int pageSize = mi.getMaxRecords() <= 0 || mi.getMaxRecords() >= 10000? 10000: mi.getMaxRecords()    
     
   // Definition of output fields
-  public String outPNLI  
-  public String outPNLS  
   public String outCONO 
   public String outPUNO
-  public String outSUNO   
   public String outNTAM  
   public String outDEAH
   public String outIVNA
@@ -200,7 +194,6 @@ public class LstPOHeader extends ExtendM3Transaction {
       DBContainer MPLINE = query.createContainer()
       MPLINE.set("IBCONO", CONO)
       
-      int pageSize = mi.getMaxRecords() <= 0 || mi.getMaxRecords() >= 10000? 10000: mi.getMaxRecords()    
       query.readAll(MPLINE, 1, pageSize, { DBContainer recordMPLINE ->  
          recLineMPLINE.add(recordMPLINE.createCopy()) 
       })
@@ -223,10 +216,9 @@ public class LstPOHeader extends ExtendM3Transaction {
     CCURRA.set("CUCRTP", CRTP)
     CCURRA.set("CUCUTD", CUTD)
 
-    int pageSize = mi.getMaxRecords() <= 0 || mi.getMaxRecords() >= 10000? 10000: mi.getMaxRecords()        
-       query.readAll(CCURRA, 4, 1, { DBContainer record ->  
+    query.readAll(CCURRA, 4, 1, { DBContainer record ->  
        currencyLine.add(record) 
-      })
+    })
     
     return currencyLine
   } 

@@ -10,13 +10,11 @@
  Name                    Date             Version          Description of Changes
  Jessica Bjorklund       2023-09-08       1.0              Creation
  Jessica Bjorklund       2025-09-18       2.0              Add logic for currency
+ Jessica Bjorklund       2025-10-06       3.0              Get order type from MPHEAD to use in the U/M calc factor logic
 ******************************************************************************************/
 
 
 import java.math.RoundingMode 
-import java.math.BigDecimal
-import java.lang.Math
-
 
 public class LstPOInfo2 extends ExtendM3Transaction {
   private final MIAPI mi 
@@ -34,7 +32,6 @@ public class LstPOInfo2 extends ExtendM3Transaction {
   public String division
   public String supplier
   public String buyer 
-  public int recNumber 
   public double lineORQA 
   public double lineIVQA 
   public double lineRVQA   
@@ -53,7 +50,6 @@ public class LstPOInfo2 extends ExtendM3Transaction {
   public double purchasePrice
   public double linePrice
   public double lineAmount  
-  public double lineQty  
   public double invLineRCAC  
   public double invLineSERA  
   public double invLineIVQT  
@@ -69,8 +65,6 @@ public class LstPOInfo2 extends ExtendM3Transaction {
   public double accInvAmount 
   public String cc_CountryCode
   public String id_CountryCode
-  public double recCostAmount 
-  public double recExcRate 
   public String qtyConversionFactor  
   public double calcCOFA1   
   public double calcDMCF1   
@@ -85,36 +79,13 @@ public class LstPOInfo2 extends ExtendM3Transaction {
   public String mplindLinePUOS
   public double mplindLineRPQA
   public int completeFlag  
-  public double lineDelAmount
-  public double invHeadRPQA
-  public double sumInvHeadRPQA
-  public double headORQA
-  public double headRVQA
-  public double headLinePrice 
-  public double headLineAmount 
-  public double headLineFactor
-  public double headPrice
-  public double headConfirmedPrice
-  public double headPurchasePrice
-  public String headPUUN
-  public String headPPUN
-  public String headITNO
-  public double headDiscount1
-  public double headDiscount2
-  public double headDiscount3
-  public double headConfirmedDiscount1
-  public double headConfirmedDiscount2
-  public double headConfirmedDiscount3
-  public double sumheadOrderedAmount
-  public double sumheadDeliveredAmount
-  public double sumHeadLineAmount
-  public double headOrderedAmount
-  public double headDeliveredAmount
   public double unitPrice
   public String status
   public Integer statusInt
   public Integer highestStatus
   public double repQty
+  public String orderType
+  public int pageSize = mi.getMaxRecords() <= 0 || mi.getMaxRecords() >= 10000? 10000: mi.getMaxRecords()        
 
 
   // Definition of output fields
@@ -263,38 +234,7 @@ public class LstPOInfo2 extends ExtendM3Transaction {
       
       lineAmount = linePrice * lineORQA
 
-      //Get UoM factors
-      getUoMFactors(company, outITNO, linePPUN, linePUUN)
-      outFACP = String.valueOf(calcFACP)
-      outFACO = String.valueOf(calcFACO)
-      outFACT = String.valueOf(calcFACT)
-      outFACE = calcFACE.setScale(6, RoundingMode.HALF_UP).toPlainString()  
-	    outORQT = lineORQA
-	    outRVQT = lineRVQA
 
-      unitPrice = linePrice * calcFACT
-      BigDecimal unitPriceRounded  = BigDecimal.valueOf(unitPrice) 
-      unitPriceRounded = unitPriceRounded.setScale(4, RoundingMode.HALF_UP) 
-      unitPrice = unitPriceRounded  
-
-      outUNPR = String.valueOf(unitPrice) 
-
-      //L Ordered Amount
-      double lineOrderedAmount = lineORQA * (linePrice * calcFACT)
-      BigDecimal lineOrderedAmountRounded  = BigDecimal.valueOf(lineOrderedAmount) 
-      lineOrderedAmountRounded = lineOrderedAmountRounded.setScale(2, RoundingMode.HALF_UP) 
-      lineOrderedAmount = lineOrderedAmountRounded  
-      outLNAM = lineOrderedAmount
-
-      outSUDO = ""  
-      outRPQT = ""  
-      outTRDT = ""  
-      outREPN = ""  
-      outGRIQ = ""  
-      outGRAM = ""  
-      outCOMP = ""  
-
-      // Get Purchase order head
       Optional<DBContainer> MPHEAD = findMPHEAD(company, inPUNO)
       if (MPHEAD.isPresent()) {
         // Record found, continue to get information  
@@ -309,11 +249,11 @@ public class LstPOInfo2 extends ExtendM3Transaction {
         outPUNO = containerMPHEAD.getString("IAPUNO")
         outSUNO = containerMPHEAD.getString("IASUNO")   
         outPUDT = String.valueOf(containerMPHEAD.get("IAPUDT"))
-  
+		    orderType = containerMPHEAD.getString("IAORTY")		
         // Fields from MPHEAD to use in the other read
         division = containerMPHEAD.getString("IADIVI")  
         supplier = containerMPHEAD.getString("IASUNO")  
-        buyer = containerMPHEAD.getString("IABUYE")   
+        buyer = containerMPHEAD.getString("IABUYE")
        
         // Get Email address for Buyer
         Optional<DBContainer> CEMAIL = findCEMAIL(company, buyer)
@@ -348,7 +288,37 @@ public class LstPOInfo2 extends ExtendM3Transaction {
           outORIG = String.valueOf("DOM")
         } 
       }
+	  
+      //Get UoM factors
+      getUoMFactors(company, outITNO, linePPUN, linePUUN)
+      outFACP = String.valueOf(calcFACP)
+      outFACO = String.valueOf(calcFACO)
+      outFACT = String.valueOf(calcFACT)
+      outFACE = calcFACE.setScale(6, RoundingMode.HALF_UP).toPlainString()  
+	    outORQT = lineORQA
+	    outRVQT = lineRVQA
 
+      unitPrice = linePrice * calcFACT
+      BigDecimal unitPriceRounded  = BigDecimal.valueOf(unitPrice) 
+      unitPriceRounded = unitPriceRounded.setScale(4, RoundingMode.HALF_UP) 
+      unitPrice = unitPriceRounded  
+
+      outUNPR = String.valueOf(unitPrice) 
+
+      //L Ordered Amount
+      double lineOrderedAmount = lineORQA * (linePrice * calcFACT)
+      BigDecimal lineOrderedAmountRounded  = BigDecimal.valueOf(lineOrderedAmount) 
+      lineOrderedAmountRounded = lineOrderedAmountRounded.setScale(2, RoundingMode.HALF_UP) 
+      lineOrderedAmount = lineOrderedAmountRounded  
+      outLNAM = lineOrderedAmount
+
+      outSUDO = ""  
+      outRPQT = ""  
+      outTRDT = ""  
+      outREPN = ""  
+      outGRIQ = ""  
+      outGRAM = ""  
+      outCOMP = ""  
 
       // Get information from receiving invoice lines - sum per PO line level
       outTIVA = ""  
@@ -554,8 +524,6 @@ public class LstPOInfo2 extends ExtendM3Transaction {
               RPQT = mplindLineRPQA
             } else if (highestStatus > 60) {
               RPQT = RPQT - mplindLineRPQA
-            } else {
-              RPQT = 0d
             }
           } 
           
@@ -638,14 +606,14 @@ public class LstPOInfo2 extends ExtendM3Transaction {
       }
       if (calcDMCF1 == 1) {
         calcFACP = 1/calcCOFA1
-		  if(qtyConversionFactor == 'N'){
+		   if((qtyConversionFactor == 'N')||(orderType == 'PC2' && linePUUN != linePPUN)){
 		    calcFACE = 1/calcCOFA1
 		  }else {
 		    calcFACE=1
 		  }
         } else {
           calcFACP = calcCOFA1
-		  if(qtyConversionFactor == 'N'){
+		   if((qtyConversionFactor == 'N')||(orderType == 'PC2' && linePUUN != linePPUN)){
 		    calcFACE = calcCOFA1
 		  }else {
 		    calcFACE=1
@@ -724,7 +692,7 @@ public class LstPOInfo2 extends ExtendM3Transaction {
   // Get information from MPHEAD
   //******************************************************************** 
   private Optional<DBContainer> findMPHEAD(Integer CONO, String PUNO){  
-    DBAction query = database.table("MPHEAD").index("00").selection("IACONO", "IAPUNO", "IADIVI", "IASUNO", "IANTAM", "IAPUDT", "IABUYE", "IACOAM","IACUCD").build()    
+    DBAction query = database.table("MPHEAD").index("00").selection("IACONO", "IAPUNO", "IADIVI", "IASUNO", "IANTAM", "IAPUDT", "IABUYE", "IACOAM","IACUCD","IAORTY").build()    
     DBContainer MPHEAD = query.getContainer()
     MPHEAD.set("IACONO", CONO)
     MPHEAD.set("IAPUNO", PUNO)
@@ -749,10 +717,9 @@ public class LstPOInfo2 extends ExtendM3Transaction {
     FGINLIline.set("F5PNLI", PNLI) 
     FGINLIline.set("F5PNLS", PNLS) 
 
-    int pageSize = mi.getMaxRecords() <= 0 || mi.getMaxRecords() >= 10000? 10000: mi.getMaxRecords()        
     query.readAll(FGINLIline, 4, pageSize, { DBContainer record ->                                           
-     logger.debug("FGINLI record ${record}")
-     invLine.add(record.createCopy())  //JBTST
+      logger.debug("FGINLI record ${record}")
+      invLine.add(record.createCopy()) 
     })
 
     logger.debug("invLine ${invLine}")
@@ -776,7 +743,6 @@ public class LstPOInfo2 extends ExtendM3Transaction {
     MPLIND.set("ICREPN", REPN) 
     MPLIND.set("ICPUOS", PUOS)
 
-    int pageSize = mi.getMaxRecords() <= 0 || mi.getMaxRecords() >= 10000? 10000: mi.getMaxRecords()        
     if (PUOS.equals("0")) {
        query.readAll(MPLIND, 5, pageSize, { DBContainer record ->  
        transLine.add(record) 
@@ -807,7 +773,6 @@ public class LstPOInfo2 extends ExtendM3Transaction {
      containerMPLIND.set("ICPNLS", PNLS)
      containerMPLIND.set("ICREPN", REPN)
 
-     int pageSize = mi.getMaxRecords() <= 0 || mi.getMaxRecords() >= 10000? 10000: mi.getMaxRecords()        
      queryMPLIND.readAll(containerMPLIND, 5, pageSize, releasedLineProcessorMPLIND)
    } 
 
@@ -841,7 +806,6 @@ public class LstPOInfo2 extends ExtendM3Transaction {
     FGRECLline.set("F2PNLI", PNLI)
     FGRECLline.set("F2PNLS", PNLS)   
 
-	  int pageSize = mi.getMaxRecords() <= 0 || mi.getMaxRecords() >= 10000? 10000: mi.getMaxRecords()        
     query.readAll(FGRECLline, 5, pageSize, { DBContainer record ->  
       recLineLine.add(record.createCopy()) 
     })
