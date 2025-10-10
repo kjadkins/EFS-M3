@@ -371,9 +371,9 @@ public class LstPOInfo2 extends ExtendM3Transaction {
       double totalReceivedQuantityRounded = 0d   
 
       
-      List<DBContainer> resultFGRECLlineSum = listFGRECLline(company, division, inPUNO, inPNLI, inPNLS)  
-      for (DBContainer recLineLineSum : resultFGRECLlineSum){   
-          int invLineSumREPN = recLineLineSum.get("F2REPN")    
+      //List<DBContainer> resultFGRECLlineSum = listFGRECLline(company, division, inPUNO, inPNLI, inPNLS)  
+      //for (DBContainer recLineLineSum : resultFGRECLlineSum){   
+          /*int invLineSumREPN = recLineLineSum.get("F2REPN")    
           // Accumulate quantity   
           double invLineSumRPQA = recLineLineSum.get("F2RPQA")    
           double invLineSumCAWE = recLineLineSum.get("F2CAWE")    
@@ -442,8 +442,8 @@ public class LstPOInfo2 extends ExtendM3Transaction {
           outDEAL = totalReceivedAmountRounded  
 
           logger.debug("invLineSumGRAM ${invLineSumGRAM}") 
-          logger.debug("totalReceivedAmountRounded ${totalReceivedAmountRounded}")   
-      }
+          logger.debug("totalReceivedAmountRounded ${totalReceivedAmountRounded}")   */
+      //}
       
 
       List<DBContainer> resultFGRECLline = listFGRECLline(company, division, inPUNO, inPNLI, inPNLS) 
@@ -458,7 +458,76 @@ public class LstPOInfo2 extends ExtendM3Transaction {
           invLineIVQT = recLineLine.get("F2IVQA")  
           invLineRPQA = recLineLine.get("F2RPQA")   
           invlineICAC = recLineLine.get("F2ICAC")   
+          
+          //**********************************************************************************************************************
+          // Accumulate quantity   
+          double invLineSumRPQA = recLineLine.get("F2RPQA")    
+          double invLineSumCAWE = recLineLine.get("F2CAWE")    
+
+          logger.debug("invLineSumRPQA ${invLineSumRPQA}")
+          logger.debug("invLineSumCAWE ${invLineSumCAWE}")
+
+          if (invLineSumCAWE != 0) {
+             invLineSumRPQA = invLineSumCAWE
+          }
+          
+          logger.debug("invLineSumRPQA ${invLineSumRPQA}")
+          
+          checkMPLINDstatus(company, inPUNO, inPNLI, inPNLS, receivingNumber) 
+          
+          mplindLinePUOS = 0
+          mplindLineRPQA = 0d
+          logger.debug("highestStatus ${highestStatus}")
+          if (highestStatus > 60) {
+            List<DBContainer> resultMPLINDRep64 = listMPLIND(company, inPUNO, inPNLI, inPNLS, receivingNumber, "64") 
+            for (DBContainer transLine : resultMPLINDRep64){
+                mplindLineRPQA = transLine.get("ICRPQA")
+            }
+          } else {
+               mplindLineRPQA = repQty
+          }
+
+          if (invLineSumRPQA > 0) {
+            if (highestStatus == 60) {
+              invLineSumRPQA = mplindLineRPQA
+            } else if (highestStatus > 60) {
+              invLineSumRPQA = invLineSumRPQA - mplindLineRPQA
+            } else {
+              invLineSumRPQA = 0d
+            }
+          } 
+          
+          //Sum Quanity
+          logger.debug("invLineSumRPQA ${invLineSumRPQA}")
+
+          totalReceivedQuantity = totalReceivedQuantity + invLineSumRPQA  
+          
+          logger.debug("totalReceivedQuantity ${totalReceivedQuantity}")
+          
+          BigDecimal totalReceivedQuantityFormat  = BigDecimal.valueOf(totalReceivedQuantity)   
+          totalReceivedQuantityRounded = totalReceivedQuantityFormat.setScale(2, RoundingMode.HALF_UP)   
+          outRVQT = totalReceivedQuantityRounded  
+
+          logger.debug("invLineSumRPQA ${invLineSumRPQA}")  
+          logger.debug("totalReceivedQuantityRounded ${totalReceivedQuantityRounded}")   
+          
+          //Sum Amount
+          double invLineSumGRAM = totalReceivedQuantity * unitPrice     
+          
+          logger.debug("invLineSumGRAM ${invLineSumGRAM}")
+
+          totalReceivedAmount = invLineSumGRAM  
+          
+          logger.debug("totalReceivedAmount ${totalReceivedAmount}")
+          
+          BigDecimal totalReceivedAmountFormat  = BigDecimal.valueOf(totalReceivedAmount)  
+          totalReceivedAmountRounded = totalReceivedAmountFormat.setScale(2, RoundingMode.HALF_UP)  
+          outDEAL = totalReceivedAmountRounded  
+
+          logger.debug("invLineSumGRAM ${invLineSumGRAM}") 
+          logger.debug("totalReceivedAmountRounded ${totalReceivedAmountRounded}")   
 		  
+          //***********************************************************************************************************************
 
           accRecCostAmount = accRecCostAmount + invLineRCAC   
           accRecInvAmount = accRecInvAmount + invlineICAC
