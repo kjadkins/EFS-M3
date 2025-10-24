@@ -11,6 +11,7 @@
  Jessica Bjorklund       2023-09-08       1.0              Creation
  Jessica Bjorklund       2025-09-18       2.0              Add logic for currency
  Jessica Bjorklund       2025-10-06       3.0              Get order type from MPHEAD to use in the U/M calc factor logic
+ Jessica Bjorklund       2025-10-23       4.0              Lower read of records for MPLIND
 ******************************************************************************************/
 
 
@@ -59,8 +60,6 @@ public class LstPOInfo2 extends ExtendM3Transaction {
   public double accRecInvAmount
   public double accRecExcRate  
   public double accRecQty  
-  public double unitCOFA  
-  public int unitDMCF 
   public double accInvQty  
   public double accInvAmount 
   public String cc_CountryCode
@@ -85,7 +84,8 @@ public class LstPOInfo2 extends ExtendM3Transaction {
   public Integer highestStatus
   public double repQty
   public String orderType
-  public int pageSize = mi.getMaxRecords() <= 0 || mi.getMaxRecords() >= 10000? 10000: mi.getMaxRecords()        
+  public int pageSize = mi.getMaxRecords() <= 0 || mi.getMaxRecords() >= 10000? 10000: mi.getMaxRecords()   
+  public int pageSizeMPLIND = mi.getMaxRecords() <= 0 || mi.getMaxRecords() >= 1000? 1000: mi.getMaxRecords()     
 
 
   // Definition of output fields
@@ -738,11 +738,11 @@ public class LstPOInfo2 extends ExtendM3Transaction {
     MPLIND.set("ICPUOS", PUOS)
 
     if (PUOS.equals("0")) {
-       query.readAll(MPLIND, 5, pageSize, { DBContainer record ->  
+       query.readAll(MPLIND, 5, pageSizeMPLIND, { DBContainer record ->  
        transLine.add(record) 
       })
     } else {
-       query.readAll(MPLIND, 6, pageSize, { DBContainer record ->  
+       query.readAll(MPLIND, 6, pageSizeMPLIND, { DBContainer record ->  
        transLine.add(record) 
       })
     }
@@ -767,7 +767,7 @@ public class LstPOInfo2 extends ExtendM3Transaction {
      containerMPLIND.set("ICPNLS", PNLS)
      containerMPLIND.set("ICREPN", REPN)
 
-     queryMPLIND.readAll(containerMPLIND, 5, pageSize, releasedLineProcessorMPLIND)
+     queryMPLIND.readAll(containerMPLIND, 5, pageSizeMPLIND, releasedLineProcessorMPLIND)
    } 
 
     
